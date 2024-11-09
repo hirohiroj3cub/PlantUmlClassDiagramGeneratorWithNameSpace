@@ -7,6 +7,9 @@ using System.Linq;
 using System.Text;
 using PlantUmlClassDiagramGenerator.Library;
 using System.Runtime.InteropServices;
+using Microsoft.CodeAnalysis;
+using static System.Runtime.InteropServices.JavaScript.JSType;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace PlantUmlClassDiagramGenerator;
 
@@ -27,7 +30,8 @@ class Program
         ["-createAssociation"] = OptionType.Switch,
         ["-allInOne"] = OptionType.Switch,
         ["-attributeRequired"] = OptionType.Switch,
-        ["-excludeUmlBeginEndTags"] = OptionType.Switch
+        ["-excludeUmlBeginEndTags"] = OptionType.Switch,
+        ["-useNamespace"] = OptionType.Switch,
     };
 
     static int Main(string[] args)
@@ -93,7 +97,8 @@ class Program
                 ignoreAcc,
                 parameters.ContainsKey("-createAssociation"),
                 parameters.ContainsKey("-attributeRequired"),
-                parameters.ContainsKey("-excludeUmlBeginEndTags"));
+                parameters.ContainsKey("-excludeUmlBeginEndTags"),
+                null);
             gen.Generate(root);
         }
         catch (Exception e)
@@ -153,6 +158,19 @@ class Program
 
         var error = false;
         var filesToProcess = ExcludeFileFilter.GetFilesToProcess(files, excludePaths, inputRoot);
+
+        var useNamespace = parameters.ContainsKey("-useNamespace");
+
+
+        CSharpCompilation compilation = null;
+
+        Dictionary<string, SyntaxTree> treeCache = new(StringComparer.Ordinal);
+
+        if (useNamespace)
+        {
+            compilation = GenerateCompilation(filesToProcess, ref error, treeCache);
+        }
+
         foreach (var inputFile in filesToProcess)
         {
             Console.WriteLine($"Processing \"{inputFile}\"...");
@@ -163,8 +181,28 @@ class Program
                 var outputFile = CombinePath(outputDir,
                     Path.GetFileNameWithoutExtension(inputFile) + ".puml");
 
-                using (var stream = new FileStream(inputFile, FileMode.Open, FileAccess.Read))
+                if (useNamespace)
                 {
+                    var tree = treeCache[inputFile];
+                    var root = tree.GetRoot();
+                    Accessibilities ignoreAcc = GetIgnoreAccessibilities(parameters);
+
+                    using var filestream = new FileStream(outputFile, FileMode.Create, FileAccess.Write);
+                    using var writer = new StreamWriter(filestream);
+                    var gen = new ClassDiagramGenerator(
+                        writer,
+                        "    ",
+                        ignoreAcc,
+                        parameters.ContainsKey("-createAssociation"),
+                        parameters.ContainsKey("-attributeRequired"),
+                        excludeUmlBeginEndTags,
+                        GenerateSemanticModel(compilation, tree));
+                    gen.Generate(root);
+                }
+                else
+                {
+                    using var stream = new FileStream(inputFile, FileMode.Open, FileAccess.Read);
+
                     var tree = CSharpSyntaxTree.ParseText(SourceText.From(stream));
                     var root = tree.GetRoot();
                     Accessibilities ignoreAcc = GetIgnoreAccessibilities(parameters);
@@ -177,9 +215,11 @@ class Program
                         ignoreAcc,
                         parameters.ContainsKey("-createAssociation"),
                         parameters.ContainsKey("-attributeRequired"),
-                        excludeUmlBeginEndTags);
+                        excludeUmlBeginEndTags,
+                        GenerateSemanticModel(compilation, tree));
                     gen.Generate(root);
                 }
+
 
                 if (parameters.ContainsKey("-allInOne"))
                 {
@@ -276,5 +316,64 @@ class Program
     private static string CombinePath(string first, string second)
     {
         return PathHelper.CombinePath(first, second);
+    }
+
+    private static SemanticModel GenerateSemanticModel(CSharpCompilation compilation, SyntaxTree tree)
+    {
+        return compilation?.GetSemanticModel(tree);
+    }
+
+
+    private static CSharpCompilation GenerateCompilation(IEnumerable<string> filesToProcess, ref bool error, Dictionary<string, SyntaxTree> treeCache)
+    {
+        try
+        {
+            var trees = filesToProcess.Select(path =>
+            {
+                Console.WriteLine($"Compiling \"{path}\"...");
+                using var stream = new FileStream(path, FileMode.Open, FileAccess.Read);
+                var tree = CSharpSyntaxTree.ParseText(SourceText.From(stream));
+                treeCache[path] = tree;
+                return tree;
+            });
+
+            CSharpCompilation compilation = CSharpCompilation.Create("Assembly")
+                .AddReferences(MetadataReference.CreateFromFile(typeof(object).Assembly.Location))
+                .AddSyntaxTrees(trees);
+
+
+            var classNames = new List<string>();
+
+            foreach (var syntaxTree in compilation.SyntaxTrees)
+            {
+                var semanticModel = compilation.GetSemanticModel(syntaxTree);
+
+                var typeDeclarations = syntaxTree.GetRoot()
+                                                 .DescendantNodes()
+                                                 .OfType<TypeDeclarationSyntax>();
+
+                foreach (var typeDecl in typeDeclarations)
+                {
+                    var symbol = semanticModel.GetDeclaredSymbol(typeDecl) as INamedTypeSymbol;
+                    if (symbol != null)
+                    {
+                        var fullyQualifiedName = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                        classNames.Add(fullyQualifiedName);
+                    }
+                }
+            }
+
+            Console.WriteLine($"Types : \n {string.Join("\n", classNames.Select(t => "\t" + t))}");
+
+            return compilation;
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            error = true;
+
+            return null;
+        }
+
     }
 }
