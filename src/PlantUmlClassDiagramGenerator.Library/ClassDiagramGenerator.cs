@@ -29,7 +29,7 @@ public class ClassDiagramGenerator(
     private readonly bool createAssociation = createAssociation;
     private readonly bool attributeRequired = attributeRequired;
     private readonly bool excludeUmlBeginEndTags = excludeUmlBeginEndTags;
-    private SemanticModel semanticModel = semanticModel;
+    private readonly SemanticModel semanticModel = semanticModel;
 
     private readonly Dictionary<string, string> escapeDictionary = new()
     {
@@ -234,7 +234,9 @@ public class ClassDiagramGenerator(
                     ? (" = " + escapeDictionary.Aggregate(field.Initializer.Value.ToString(),
                         (f, e) => Regex.Replace(f, e.Key, e.Value)))
                     : "";
-                WriteLine($"{modifiers}{field.Identifier} : {type}{initValue}");
+                var typename = TypeNameText.GetText(type, semanticModel, type.ToString()).Replace("@", "");
+
+                WriteLine($"{modifiers}{field.Identifier} : {typename}{initValue}");
             }
             else
             {
@@ -288,8 +290,9 @@ public class ClassDiagramGenerator(
                 ? (" = " + escapeDictionary.Aggregate(node.Initializer.Value.ToString(),
                     (n, e) => Regex.Replace(n, e.Key, e.Value)))
                 : "";
+            var typename = TypeNameText.GetText(type, semanticModel, type.ToString()).Replace("@", "");
 
-            WriteLine($"{modifiers}{name} : {type} {accessorStr}{initValue}");
+            WriteLine($"{modifiers}{name} : {typename} {accessorStr}{initValue}");
         }
         else
         {
