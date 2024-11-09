@@ -44,149 +44,78 @@ public class TypeNameText
     
     public static TypeNameText From(SimpleNameSyntax syntax, SemanticModel semanticModel)
     {
-        if (semanticModel == null)
+        var identifier = GetText(syntax, semanticModel, syntax.Identifier.Text);
+        var typeArgs = string.Empty;
+        if (syntax is GenericNameSyntax genericName && genericName.TypeArgumentList != null)
         {
-            var identifier = syntax.Identifier.Text;
-            var typeArgs = string.Empty;
-            if (syntax is GenericNameSyntax genericName && genericName.TypeArgumentList != null)
-            {
-                var count = genericName.TypeArgumentList.Arguments.Count;
-                identifier = $"\"{identifier}`{count}\"";
-                typeArgs = "<" + string.Join(",", genericName.TypeArgumentList.Arguments) + ">";
-            }
-            else if (identifier.StartsWith("@"))
-            {
-                identifier = $"\"{identifier}\"";
-            }
-            return new TypeNameText
-            {
-                Identifier = identifier,
-                TypeArguments = typeArgs
-            };
+            var count = genericName.TypeArgumentList.Arguments.Count;
+            identifier = $"\"{identifier}`{count}\"";
+            typeArgs = "<" + string.Join(",", genericName.TypeArgumentList.Arguments) + ">";
         }
-        else
+        else if (identifier.Contains("@"))
         {
-            var identifier = GetText(syntax, semanticModel) ?? syntax.Identifier.Text;
-            var typeArgs = string.Empty;
-            if (syntax is GenericNameSyntax genericName && genericName.TypeArgumentList != null)
-            {
-                var count = genericName.TypeArgumentList.Arguments.Count;
-                identifier = $"\"{identifier}`{count}\"";
-                typeArgs = "<" + string.Join(",", genericName.TypeArgumentList.Arguments) + ">";
-            }
-            else if (identifier.Contains("@"))
-            {
-                identifier = $"\"{identifier}\"";
-            }
+            identifier = $"\"{identifier}\"";
+        }
 
-            return new TypeNameText
-            {
-                Identifier = identifier,
-                TypeArguments = typeArgs
-            };
-        }
+        return new TypeNameText
+        {
+            Identifier = identifier,
+            TypeArguments = typeArgs
+        };
     }
 
     public static TypeNameText From(GenericNameSyntax syntax, SemanticModel semanticModel)
     {
-        if (semanticModel == null)
+        var identifier = GetText(syntax, semanticModel, syntax.Identifier.Text);
+
+        int paramCount = syntax.TypeArgumentList.Arguments.Count;
+        string[] parameters = new string[paramCount];
+        if (paramCount > 1)
         {
-            int paramCount = syntax.TypeArgumentList.Arguments.Count;
-            string[] parameters = new string[paramCount];
-            if (paramCount > 1)
+            for (int i = 0; i < paramCount; i++)
             {
-                for (int i = 0; i < paramCount; i++)
-                {
-                    parameters[i] = $"T{i + 1}";
-                }
+                parameters[i] = $"T{i + 1}";
             }
-            else
-            {
-                parameters[0] = "T";
-            }
-            return new TypeNameText
-            {
-                Identifier = $"\"{syntax.Identifier.Text}`{paramCount}\"",
-                TypeArguments = "<" + string.Join(",", parameters) + ">",
-            };
         }
         else
         {
-            var identifier = GetText(syntax, semanticModel) ?? syntax.Identifier.Text;
-
-            int paramCount = syntax.TypeArgumentList.Arguments.Count;
-            string[] parameters = new string[paramCount];
-            if (paramCount > 1)
-            {
-                for (int i = 0; i < paramCount; i++)
-                {
-                    parameters[i] = $"T{i + 1}";
-                }
-            }
-            else
-            {
-                parameters[0] = "T";
-            }
-
-            return new TypeNameText
-            {
-                Identifier = $"\"{identifier}`{paramCount}\"",
-                TypeArguments = "<" + string.Join(",", parameters) + ">",
-            };
+            parameters[0] = "T";
         }
 
+        return new TypeNameText
+        {
+            Identifier = $"\"{identifier}`{paramCount}\"",
+            TypeArguments = "<" + string.Join(",", parameters) + ">",
+        };
     }
 
     public static TypeNameText From(BaseTypeDeclarationSyntax syntax, SemanticModel semanticModel)
     {
-        if (semanticModel == null)
-        {
-            var identifier = syntax.Identifier.Text;
-            var typeArgs = string.Empty;
-            if (syntax is TypeDeclarationSyntax typeDeclaration && typeDeclaration.TypeParameterList != null)
-            {
-                var count = typeDeclaration.TypeParameterList.Parameters.Count;
-                identifier = $"\"{identifier}`{count}\"";
-                typeArgs = "<" + string.Join(",", typeDeclaration.TypeParameterList.Parameters) + ">";
-            }
-            else if (identifier.StartsWith("@"))
-            {
-                identifier = $"\"{identifier}\"";
-            }
-            return new TypeNameText
-            {
-                Identifier = identifier,
-                TypeArguments = typeArgs
-            };
-        }
-        else
-        {
-            var identifier = GetText(syntax, semanticModel) ?? syntax.Identifier.Text;
-            var typeArgs = string.Empty;
-            if (syntax is TypeDeclarationSyntax typeDeclaration && typeDeclaration.TypeParameterList != null)
-            {
-                var count = typeDeclaration.TypeParameterList.Parameters.Count;
-                identifier = $"\"{identifier}`{count}\"";
-                typeArgs = "<" + string.Join(",", typeDeclaration.TypeParameterList.Parameters) + ">";
-            }
-            else if (identifier.Contains("@"))
-            {
-                identifier = $"\"{identifier}\"";
-            }
+        var identifier = GetText(syntax, semanticModel, syntax.Identifier.Text);
 
-            return new TypeNameText
-            {
-                Identifier = identifier,
-                TypeArguments = typeArgs
-            };
+        var typeArgs = string.Empty;
+        if (syntax is TypeDeclarationSyntax typeDeclaration && typeDeclaration.TypeParameterList != null)
+        {
+            var count = typeDeclaration.TypeParameterList.Parameters.Count;
+            identifier = $"\"{identifier}`{count}\"";
+            typeArgs = "<" + string.Join(",", typeDeclaration.TypeParameterList.Parameters) + ">";
         }
+        else if (identifier.Contains("@"))
+        {
+            identifier = $"\"{identifier}\"";
+        }
+        return new TypeNameText
+        {
+            Identifier = identifier,
+            TypeArguments = typeArgs
+        };
     }
 
-    public static string GetText(SyntaxNode syntax, SemanticModel semanticModel)
+    public static string GetText(SyntaxNode syntax, SemanticModel semanticModel, string defaultName)
     {
         if ( semanticModel == null )
         {
-            return null;
+            return defaultName;
         }
 
         var symbol = syntax is SimpleNameSyntax ? semanticModel.GetSymbolInfo(syntax).Symbol 
@@ -195,7 +124,7 @@ public class TypeNameText
 
         if (symbol == null)
         {
-            return null;
+            return $"{defaultName}";
         }
 
         string name = symbol.ToDisplayString(symbolDisplayFormatNameOnly);
@@ -217,7 +146,6 @@ public class TypeNameText
                 else safeName  += $".@{part}";
             }
             safeName += $".{parts.Last()}";
-            Console.WriteLine($"{nestedName} -> {safeName}");
 
             return safeName;
         }
