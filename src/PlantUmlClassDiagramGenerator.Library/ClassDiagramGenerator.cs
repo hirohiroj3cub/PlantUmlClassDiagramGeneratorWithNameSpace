@@ -16,7 +16,8 @@ public class ClassDiagramGenerator(
     Accessibilities ignoreMemberAccessibilities = Accessibilities.None,
     bool createAssociation = true,
     bool attributeRequired = false,
-    bool excludeUmlBeginEndTags = false) : CSharpSyntaxWalker
+    bool excludeUmlBeginEndTags = false,
+    SemanticModel semanticModel = null) : CSharpSyntaxWalker
 {
     private readonly HashSet<string> types = [];
     private readonly List<SyntaxNode> additionalTypeDeclarationNodes = [];
@@ -28,6 +29,8 @@ public class ClassDiagramGenerator(
     private readonly bool createAssociation = createAssociation;
     private readonly bool attributeRequired = attributeRequired;
     private readonly bool excludeUmlBeginEndTags = excludeUmlBeginEndTags;
+    private SemanticModel semanticModel = semanticModel;
+
     private readonly Dictionary<string, string> escapeDictionary = new()
     {
         {@"(?<before>[^{]){(?<after>{[^{])", "${before}&#123;${after}"},
@@ -64,12 +67,12 @@ public class ClassDiagramGenerator(
         if (node.AttributeLists.HasIgnoreAttribute()) { return; }
         if (SkipInnerTypeDeclaration(node)) { return; }
 
-        relationships.AddInnerclassRelationFrom(node);
-        relationships.AddInheritanceFrom(node);
+        relationships.AddInnerclassRelationFrom(node, semanticModel);
+        relationships.AddInheritanceFrom(node, semanticModel);
         var modifiers = GetTypeModifiersText(node.Modifiers);
         var abstractKeyword = (node.Modifiers.Any(SyntaxKind.AbstractKeyword) ? "abstract " : "");
 
-        var typeName = TypeNameText.From(node);
+        var typeName = TypeNameText.From(node, semanticModel);
         var name = typeName.Identifier;
         var typeParam = typeName.TypeArguments;
         var type = $"{name}{typeParam}";
@@ -99,7 +102,7 @@ public class ClassDiagramGenerator(
         if (associationAttrSyntax is not null)
         {
             var associationAttr = CreateAssociationAttribute(associationAttrSyntax);
-            relationships.AddAssociationFrom(node, parameter, associationAttr);
+            relationships.AddAssociationFrom(node, parameter, associationAttr, semanticModel);
         }
         else if (!createAssociation
           || parameter.AttributeLists.HasIgnoreAssociationAttribute()
@@ -127,7 +130,7 @@ public class ClassDiagramGenerator(
             {
                 additionalTypeDeclarationNodes.Add(parameterType);
             }
-            relationships.AddAssociationFrom(parameter, node);
+            relationships.AddAssociationFrom(parameter, node, semanticModel);
         }
     }
 
@@ -137,10 +140,10 @@ public class ClassDiagramGenerator(
         if (node.AttributeLists.HasIgnoreAttribute()) { return; }
         if (SkipInnerTypeDeclaration(node)) { return; }
 
-        relationships.AddInnerclassRelationFrom(node);
-        relationships.AddInheritanceFrom(node);
+        relationships.AddInnerclassRelationFrom(node, semanticModel);
+        relationships.AddInheritanceFrom(node, semanticModel);
 
-        var typeName = TypeNameText.From(node);
+        var typeName = TypeNameText.From(node, semanticModel);
         var name = typeName.Identifier;
         var typeParam = typeName.TypeArguments;
         var type = $"{name}{typeParam}";
@@ -162,7 +165,7 @@ public class ClassDiagramGenerator(
         if (node.AttributeLists.HasIgnoreAttribute()) { return; }
         if (SkipInnerTypeDeclaration(node)) { return; }
 
-        relationships.AddInnerclassRelationFrom(node);
+        relationships.AddInnerclassRelationFrom(node, semanticModel);
 
         var type = $"{node.Identifier}";
 
@@ -187,7 +190,7 @@ public class ClassDiagramGenerator(
             if (associationAttrSyntax is not null)
             {
                 var associationAttr = CreateAssociationAttribute(associationAttrSyntax);
-                relationships.AddAssociationFrom(node, parameter, associationAttr);
+                relationships.AddAssociationFrom(node, parameter, associationAttr, semanticModel);
             }
         }
         var modifiers = GetMemberModifiersText(node.Modifiers,
@@ -218,7 +221,7 @@ public class ClassDiagramGenerator(
             if (associationAttrSyntax is not null)
             {
                 var associationAttr = CreateAssociationAttribute(associationAttrSyntax);
-                relationships.AddAssociationFrom(node, associationAttr);
+                relationships.AddAssociationFrom(node, associationAttr, semanticModel);
             }
             else if (!createAssociation
                 || node.AttributeLists.HasIgnoreAssociationAttribute()
@@ -239,7 +242,7 @@ public class ClassDiagramGenerator(
                 {
                     additionalTypeDeclarationNodes.Add(type);
                 }
-                relationships.AddAssociationFrom(node, field);
+                relationships.AddAssociationFrom(node, field, semanticModel);
             }
         }
     }
@@ -261,7 +264,7 @@ public class ClassDiagramGenerator(
         if (associationAttrSyntax is not null)
         {
             var associationAttr = CreateAssociationAttribute(associationAttrSyntax);
-            relationships.AddAssociationFrom(node, associationAttr);
+            relationships.AddAssociationFrom(node, associationAttr, semanticModel);
         }
         else if (!createAssociation
             || node.AttributeLists.HasIgnoreAssociationAttribute()
@@ -294,7 +297,7 @@ public class ClassDiagramGenerator(
             {
                 additionalTypeDeclarationNodes.Add(type);
             }
-            relationships.AddAssociationFrom(node, typeIgnoringNullable);
+            relationships.AddAssociationFrom(node, typeIgnoringNullable, semanticModel);
         }
     }
 
@@ -325,7 +328,7 @@ public class ClassDiagramGenerator(
             if (associationAttrSyntax is not null)
             {
                 var associationAttr = CreateAssociationAttribute(associationAttrSyntax);
-                relationships.AddAssociationFrom(node, parameter, associationAttr);
+                relationships.AddAssociationFrom(node, parameter, associationAttr, semanticModel);
             }
         }
         var modifiers = GetMemberModifiersText(node.Modifiers,
@@ -395,7 +398,7 @@ public class ClassDiagramGenerator(
 
     private void GenerateAdditionalGenericTypeDeclaration(GenericNameSyntax genericNode)
     {
-        var typename = TypeNameText.From(genericNode);
+        var typename = TypeNameText.From(genericNode, semanticModel);
         if (!types.Contains(typename.Identifier))
         {
             WriteLine($"class {typename.Identifier}{typename.TypeArguments} {{");
@@ -418,14 +421,14 @@ public class ClassDiagramGenerator(
         if (node.AttributeLists.HasIgnoreAttribute()) { return; }
         if (SkipInnerTypeDeclaration(node)) { return; }
 
-        relationships.AddInnerclassRelationFrom(node);
-        relationships.AddInheritanceFrom(node);
+        relationships.AddInnerclassRelationFrom(node, semanticModel);
+        relationships.AddInheritanceFrom(node, semanticModel);
 
         var modifiers = GetTypeModifiersText(node.Modifiers);
         var keyword = (node.Modifiers.Any(SyntaxKind.AbstractKeyword) ? "abstract " : "")
             + node.Keyword.ToString();
 
-        var typeName = TypeNameText.From(node);
+        var typeName = TypeNameText.From(node, semanticModel);
         var name = typeName.Identifier;
         var typeParam = typeName.TypeArguments;
         var type = $"{name}{typeParam}";
