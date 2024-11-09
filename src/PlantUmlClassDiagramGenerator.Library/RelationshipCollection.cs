@@ -19,7 +19,7 @@ public class RelationshipCollection : IEnumerable<Relationship>
         foreach (var typeStntax in syntax.BaseList.Types)
         {
             if (typeStntax.Type is not SimpleNameSyntax typeNameSyntax) continue;
-            var baseTypeName = TypeNameText.From(syntax, semanticModel);
+            var baseTypeName = TypeNameText.From(typeNameSyntax, semanticModel);
             items.Add(new Relationship(baseTypeName, subTypeName, "<|--", baseTypeName.TypeArguments));
         }
     }
