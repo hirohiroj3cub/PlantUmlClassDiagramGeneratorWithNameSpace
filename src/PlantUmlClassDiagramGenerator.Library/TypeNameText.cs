@@ -74,7 +74,7 @@ public class TypeNameText
                 identifier = $"\"{identifier}`{count}\"";
                 typeArgs = "<" + string.Join(",", genericName.TypeArgumentList.Arguments) + ">";
             }
-            else if (identifier.StartsWith("@"))
+            else if (identifier.Contains("@"))
             {
                 identifier = $"\"{identifier}\"";
             }
@@ -169,7 +169,7 @@ public class TypeNameText
                 identifier = $"\"{identifier}`{count}\"";
                 typeArgs = "<" + string.Join(",", typeDeclaration.TypeParameterList.Parameters) + ">";
             }
-            else if (identifier.StartsWith("@"))
+            else if (identifier.Contains("@"))
             {
                 identifier = $"\"{identifier}\"";
             }
@@ -208,7 +208,18 @@ public class TypeNameText
         }
         else
         {
-            return fullName.Substring(0, fullName.Length - nestedName.Length) + name;
+            string[] parts = nestedName.Split('.');
+            string safeName = $"{fullName.Substring(0, fullName.Length - nestedName.Length - 1)}";
+            for(int i = 0; i < parts.Length -1; i++)
+            {
+                string part = parts[i];
+                if (part == "") continue;
+                else safeName  += $".@{part}";
+            }
+            safeName += $".{parts.Last()}";
+            Console.WriteLine($"{nestedName} -> {safeName}");
+
+            return safeName;
         }
     }
 }
