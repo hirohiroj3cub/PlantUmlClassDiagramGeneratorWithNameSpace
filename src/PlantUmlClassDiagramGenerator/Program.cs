@@ -8,7 +8,6 @@ using System.Text;
 using PlantUmlClassDiagramGenerator.Library;
 using System.Runtime.InteropServices;
 using Microsoft.CodeAnalysis;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace PlantUmlClassDiagramGenerator;
@@ -338,7 +337,6 @@ class Program
             });
 
             CSharpCompilation compilation = CSharpCompilation.Create("Assembly")
-                .AddReferences(MetadataReference.CreateFromFile(typeof(object).Assembly.Location))
                 .AddSyntaxTrees(trees);
 
 
