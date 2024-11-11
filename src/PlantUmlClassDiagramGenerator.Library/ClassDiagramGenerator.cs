@@ -439,8 +439,6 @@ public class ClassDiagramGenerator(
             {
                 var typeText = TypeNameTextSemanticModel.GetTypeDefineText(semanticModel, typename.Identifier);
 
-                Console.WriteLine($"{typename.Identifier} => {typeText}");
-
                 WriteLine($"{typeText} $additional {{");
                 WriteLine("}");
             }
