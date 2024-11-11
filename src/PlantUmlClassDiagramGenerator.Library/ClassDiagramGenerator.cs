@@ -269,6 +269,10 @@ public class ClassDiagramGenerator(
         if (IsIgnoreMember(node.Modifiers)) { return; }
 
         var type = node.Type;
+        if (type is QualifiedNameSyntax qualifiedType)
+        {
+            type = qualifiedType.Right;
+        }
 
         var parentClass = (node.Parent as TypeDeclarationSyntax);
         var isTypeParameterProp = parentClass?.TypeParameterList?.Parameters
