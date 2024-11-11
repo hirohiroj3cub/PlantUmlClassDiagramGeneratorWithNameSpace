@@ -9,6 +9,10 @@ public class Relationship(TypeNameText baseTypeName, TypeNameText subTypeName, s
     protected string centerLabel = string.IsNullOrWhiteSpace(centerLabel) ? "" : $" : \"{centerLabel}\"";
     private readonly string symbol = symbol;
 
+    public string BaseTypeIdentifier => baseTypeName.Identifier;
+
+    public string SubTypeIdentifier => subTypeName.Identifier;
+
     public override string ToString()
     {
         return $"{baseTypeName.Identifier}{baseLabel} {symbol}{subLabel} {subTypeName.Identifier}{centerLabel}";

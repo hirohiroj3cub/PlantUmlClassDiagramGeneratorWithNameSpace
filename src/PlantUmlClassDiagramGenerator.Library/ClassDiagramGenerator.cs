@@ -48,6 +48,7 @@ public class ClassDiagramGenerator(
     {
         Visit(root);
         GenerateAdditionalTypeDeclarations();
+        GenerateRelationshipsTypeWithSemanticModel();
         GenerateRelationships();
     }
 
@@ -217,6 +218,10 @@ public class ClassDiagramGenerator(
         foreach (var field in variables)
         {
             Type fieldType = type.GetType();
+            if (type is QualifiedNameSyntax qualifiedType)
+            {
+                fieldType = qualifiedType.Right.GetType();
+            }
             var associationAttrSyntax = node.AttributeLists.GetAssociationAttributeSyntax();
             if (associationAttrSyntax is not null)
             {
@@ -234,7 +239,16 @@ public class ClassDiagramGenerator(
                     ? (" = " + escapeDictionary.Aggregate(field.Initializer.Value.ToString(),
                         (f, e) => Regex.Replace(f, e.Key, e.Value)))
                     : "";
-                var typename = TypeNameText.GetText(type, semanticModel, type.ToString()).Replace("@", "");
+
+                var typename = TypeNameTextSemanticModel.GetSafeNameAndNameSpaceText(semanticModel, type);
+                if (typename is null)
+                {
+                    typename = type.ToString();
+                }
+                else
+                {
+                    typename = typename.Replace("@", "");
+                }
 
                 WriteLine($"{modifiers}{field.Identifier} : {typename}{initValue}");
             }
@@ -290,7 +304,15 @@ public class ClassDiagramGenerator(
                 ? (" = " + escapeDictionary.Aggregate(node.Initializer.Value.ToString(),
                     (n, e) => Regex.Replace(n, e.Key, e.Value)))
                 : "";
-            var typename = TypeNameText.GetText(type, semanticModel, type.ToString()).Replace("@", "");
+            var typename = TypeNameTextSemanticModel.GetSafeNameAndNameSpaceText(semanticModel, type);
+            if(typename is null)
+            {
+                typename = type.ToString();
+            }
+            else
+            {
+                typename = typename.Replace("@", "");
+            }
 
             WriteLine($"{modifiers}{name} : {typename} {accessorStr}{initValue}");
         }
@@ -404,9 +426,45 @@ public class ClassDiagramGenerator(
         var typename = TypeNameText.From(genericNode, semanticModel);
         if (!types.Contains(typename.Identifier))
         {
-            WriteLine($"class {typename.Identifier}{typename.TypeArguments} {{");
-            WriteLine("}");
+            if(semanticModel is null)
+            {
+                WriteLine($"class {typename.Identifier}{typename.TypeArguments} {{");
+                WriteLine("}");
+            }
+            else
+            {
+                var typeText = TypeNameTextSemanticModel.GetTypeDefineText(semanticModel, typename.Identifier);
+
+                Console.WriteLine($"{typename.Identifier} => {typeText}");
+
+                WriteLine($"{typeText} $additional {{");
+                WriteLine("}");
+            }
+
             types.Add(typename.Identifier);
+        }
+    }
+
+    private void GenerateRelationshipsTypeWithSemanticModel()
+    {
+        if (semanticModel is not null)
+        {
+            foreach (var relationship in relationships)
+            {
+                var identifiers = new[] { relationship.BaseTypeIdentifier, relationship.SubTypeIdentifier };
+                foreach (var identifier in identifiers)
+                {
+                    if (types.Add(identifier))
+                    {
+                        var typeText = TypeNameTextSemanticModel.GetTypeDefineText(semanticModel, identifier);
+                        if (!string.IsNullOrWhiteSpace(typeText))
+                        {
+                            WriteLine($"{typeText} $relation_additional {{");
+                            WriteLine("}");
+                        }
+                    }
+                }
+            }
         }
     }
 

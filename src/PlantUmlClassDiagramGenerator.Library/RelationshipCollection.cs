@@ -36,8 +36,10 @@ public class RelationshipCollection : IEnumerable<Relationship>
 
     public void AddAssociationFrom(FieldDeclarationSyntax node, VariableDeclaratorSyntax field, SemanticModel semanticModel)
     {
-        if (node.Declaration.Type is not SimpleNameSyntax leafNode 
-            || node.Parent is not BaseTypeDeclarationSyntax rootNode) return;
+        var leafNode = node.Declaration.Type as SimpleNameSyntax ??
+            (node.Declaration.Type as QualifiedNameSyntax)?.Right;
+
+        if (leafNode is null || node.Parent is not BaseTypeDeclarationSyntax rootNode) return;
 
         var symbol = field.Initializer == null ? "-->" : "o->";
         var fieldIdentifier = field.Identifier.ToString();
